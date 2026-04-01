@@ -1,0 +1,9 @@
+[
+  {
+    "clientId":    "demo-client",
+    "displayName": "Sarah Mitchell",
+    "email":       "demo@recruemedia.com",
+    "passwordHash": "REPLACE_WITH_SHA256_OF_PASSWORD",
+    "partnerName": "Apex Retail Group"
+  }
+]
