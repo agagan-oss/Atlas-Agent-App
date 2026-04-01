@@ -6,5 +6,5 @@ import react from '@vitejs/plugin-react'
 // For a custom domain or root deployment, use base: '/'
 export default defineConfig({
   plugins: [react()],
-  base: '/',
+  base: 'Atlas-Agent-App',
 })
