@@ -97,13 +97,15 @@ const PLT_INFO = {
 const PLT_COLOR = { FB:'#f472b6', FBV:'#a855f7', DSP:'#7dd3fc', CTV:'#a8c4e0', SEM:'#6effd8', LSA:'#00ffb3', TTD:'#00ffb3', default:'#7dd3fc' }
 
 // ─── WIZARD STEPS ─────────────────────────────────────────
+// type: 'choice' | 'text' | 'contact'
+// autoAdvance: true = move to next step immediately on choice selection
 const STEPS = [
   {
-    id: 'type', q: 'What type of business are you?', type: 'choice',
+    id: 'type', q: 'What type of business are you?', type: 'choice', autoAdvance: true,
     choices: ['Auto Dealership', 'HVAC / Heating & Cooling', 'Plumbing', 'Electrical', 'Roofing', 'Landscaping', 'Other Home Service', 'Other'],
   },
   {
-    id: 'name', q: 'What\'s your business name?', type: 'text',
+    id: 'name', q: "What's your business name?", type: 'text',
     ph: 'e.g. Martinez Ford, Apex HVAC...',
   },
   {
@@ -111,16 +113,19 @@ const STEPS = [
     ph: 'City, State — e.g. Phoenix, AZ',
   },
   {
-    id: 'goal', q: 'What\'s your #1 goal right now?', type: 'choice',
+    id: 'goal', q: "What's your #1 goal right now?", type: 'choice', autoAdvance: true,
     choices: ['More sales / leads', 'More phone calls', 'More website traffic', 'More foot traffic', 'More brand awareness', 'More newsletter signups'],
   },
   {
-    id: 'budget', q: 'What\'s your monthly ad budget?', type: 'choice',
+    id: 'budget', q: "What's your monthly ad budget?", type: 'choice', autoAdvance: true,
     choices: ['$2,000 – $3,500', '$3,500 – $5,000', '$5,000 – $7,500', '$7,500 – $10,000', '$10,000+'],
   },
   {
-    id: 'urgency', q: 'When do you want to start seeing results?', type: 'choice',
+    id: 'urgency', q: 'When do you want to start seeing results?', type: 'choice', autoAdvance: true,
     choices: ['As soon as possible', 'Within 2 weeks', 'Next month', 'Just exploring'],
+  },
+  {
+    id: 'contact', q: "Last step — how should we reach you?", type: 'contact',
   },
 ]
 
@@ -220,23 +225,61 @@ export default function AtlasAgent({ onGoPortal }) {
   // ── Navigation helpers ───────────────────────────────────
   function goStep(n) { setStep(n) }
 
-  function handleChoice(field, value, autoAdvance) {
+  function handleChoice(field, value) {
+    const current = STEPS[step]
     setBusiness(prev => ({ ...prev, [field]: value }))
-    if (autoAdvance) setTimeout(() => advanceStep(), 280)
+    if (current.autoAdvance) {
+      setTimeout(() => advanceStep(), 280)
+    }
   }
 
   function advanceStep() {
     if (step < STEPS.length - 1) {
       setStep(s => s + 1)
     } else {
-      setScreen('strategy')
+      submitAndGoStrategy()
     }
+  }
+
+  function goBack() {
+    if (step > 0) setStep(s => s - 1)
   }
 
   function handleTextContinue() {
     const val = (business[STEPS[step].id] || '').trim()
     if (!val) return
     advanceStep()
+  }
+
+  function handleContactContinue() {
+    const { contactName, contactEmail, contactPhone } = business
+    if (!contactName?.trim() || !contactEmail?.trim()) return
+    submitAndGoStrategy()
+  }
+
+  function submitAndGoStrategy() {
+    // Fire mailto to Austin with the lead details
+    const b = business
+    const subject = encodeURIComponent(`New Atlas Lead — ${b.name || 'Unknown Business'} · ${b.type || ''}`)
+    const body = encodeURIComponent(
+      `New lead from Atlas AI Agent\n` +
+      `${'─'.repeat(40)}\n` +
+      `Business: ${b.name || '—'}\n` +
+      `Type: ${b.type || '—'}\n` +
+      `Location: ${b.location || '—'}\n` +
+      `Goal: ${b.goal || '—'}\n` +
+      `Budget: ${b.budget || '—'}/mo\n` +
+      `Timeline: ${b.urgency || '—'}\n` +
+      `${'─'.repeat(40)}\n` +
+      `CONTACT INFO\n` +
+      `Name: ${b.contactName || '—'}\n` +
+      `Email: ${b.contactEmail || '—'}\n` +
+      `Phone: ${b.contactPhone || '—'}\n` +
+      `${'─'.repeat(40)}\n` +
+      `Submitted via Atlas at recruemedia.com`
+    )
+    window.open(`mailto:${AGENCY_EMAIL}?subject=${subject}&body=${body}`)
+    setScreen('strategy')
   }
 
   // ── Strategy approval → agent build ─────────────────────
@@ -393,27 +436,55 @@ export default function AtlasAgent({ onGoPortal }) {
     const current = STEPS[step]
     const progress = ((step + 1) / STEPS.length) * 100
 
+    // Step dot indicators
+    const stepDots = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 28 }}>
+        {STEPS.map((s, i) => {
+          const done = i < step
+          const cur  = i === step
+          return (
+            <div key={i} onClick={() => i < step && setStep(i)}
+              style={{
+                width: cur ? 20 : 8, height: 8, borderRadius: 4,
+                background: done ? '#00e5a0' : cur ? '#00e5a0' : '#162236',
+                opacity: done ? .7 : cur ? 1 : 1,
+                transition: 'all .3s ease',
+                cursor: i < step ? 'pointer' : 'default',
+              }} />
+          )
+        })}
+      </div>
+    )
+
     return (
       <div style={{ minHeight: '100vh', background: '#040c18', display: 'flex', flexDirection: 'column' }}>
-        {/* Progress */}
+        {/* Progress bar */}
         <div style={{ height: 3, background: '#162236' }}>
           <div style={{ height: '100%', background: 'linear-gradient(90deg,#00c896,#00e5a0)', width: `${progress}%`, transition: 'width .4s ease', boxShadow: '0 0 8px rgba(0,229,160,.4)' }} />
         </div>
 
         {/* Header */}
         <div style={{ padding: '14px 22px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Back arrow — always visible after step 0 */}
+          {step > 0
+            ? <button onClick={goBack} style={{ background: 'none', border: 'none', color: '#4d6e8a', fontSize: 18, cursor: 'pointer', padding: '0 4px', lineHeight: 1, display: 'flex', alignItems: 'center' }}>←</button>
+            : <div style={{ width: 26 }} />
+          }
           <div style={{ width: 22, height: 22, borderRadius: 6, background: '#0a1525', border: '1px solid #00c89640', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: '#00e5a0' }}>R</div>
-          <span style={{ fontSize: 11, color: '#3d5a72' }}>Atlas · Setup · Step {step + 1} of {STEPS.length}</span>
+          <span style={{ fontSize: 11, color: '#3d5a72' }}>Atlas · Step {step + 1} of {STEPS.length}</span>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 11, color: '#2a4060' }}>{Math.round(progress)}%</span>
         </div>
 
         {/* Content */}
-        <div className="fia" key={step} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px' }}>
+        <div className="fia" key={step} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px' }}>
           <div style={{ width: '100%', maxWidth: 520 }}>
 
+            {/* Step dots */}
+            {stepDots}
+
             {/* Atlas message bubble */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 26 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 24 }}>
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#002e24', border: '1px solid #00c89640', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#00e5a0', flexShrink: 0, boxShadow: '0 0 14px rgba(0,229,160,.18)' }}>A</div>
               <div style={{ background: '#0a1525', border: '1px solid #1e293b', borderRadius: '4px 12px 12px 12px', padding: '14px 18px', flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#00e5a0', marginBottom: 6 }}>Atlas</div>
@@ -423,18 +494,31 @@ export default function AtlasAgent({ onGoPortal }) {
                     You mentioned: <span style={{ color: '#00e5a0' }}>"{business.quickGoal}"</span> — I'll use that to personalize your strategy.
                   </div>
                 )}
+                {/* Summary of prior answers shown as chips */}
+                {step > 0 && (
+                  <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      business.type     && { label: business.type },
+                      business.name     && { label: business.name },
+                      business.location && { label: business.location },
+                      business.goal     && { label: business.goal },
+                      business.budget   && { label: business.budget + '/mo' },
+                    ].filter(Boolean).map((chip, i) => (
+                      <span key={i} style={{ background: '#002e24', border: '1px solid #00c89630', borderRadius: 10, padding: '2px 9px', fontSize: 11, color: '#00d48a' }}>{chip.label}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Choice input */}
+            {/* ── CHOICE input ── */}
             {current.type === 'choice' && (
               <div style={{ display: 'grid', gridTemplateColumns: current.choices.length > 5 ? '1fr 1fr' : '1fr', gap: 8 }}>
                 {current.choices.map(c => {
                   const selected = business[current.id] === c
-                  const autoAdvance = current.id === 'budget' || current.id === 'urgency' || current.id === 'goal' || current.id === 'type'
                   return (
                     <button key={c}
-                      onClick={() => handleChoice(current.id, c, autoAdvance)}
+                      onClick={() => handleChoice(current.id, c)}
                       style={{
                         background: selected ? '#002e24' : '#0a1525',
                         border: `1px solid ${selected ? '#00c89650' : '#1e293b'}`,
@@ -455,7 +539,7 @@ export default function AtlasAgent({ onGoPortal }) {
               </div>
             )}
 
-            {/* Text input */}
+            {/* ── TEXT input ── */}
             {current.type === 'text' && (
               <>
                 <input
@@ -475,21 +559,24 @@ export default function AtlasAgent({ onGoPortal }) {
                 />
                 <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
                   <button onClick={handleTextContinue}
-                    style={{ background: '#002e24', border: '1px solid #00c89650', borderRadius: 8, padding: '11px 22px', color: '#00e5a0', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    disabled={!(business[current.id] || '').trim()}
+                    style={{
+                      background: (business[current.id] || '').trim() ? '#002e24' : '#162236',
+                      border: `1px solid ${(business[current.id] || '').trim() ? '#00c89650' : '#334155'}`,
+                      borderRadius: 8, padding: '11px 22px',
+                      color: (business[current.id] || '').trim() ? '#00e5a0' : '#3d5a72',
+                      fontSize: 13, fontWeight: 700, cursor: (business[current.id] || '').trim() ? 'pointer' : 'default',
+                      transition: 'all .2s',
+                    }}>
                     Continue →
                   </button>
                 </div>
               </>
             )}
 
-            {/* Back button */}
-            {step > 0 && (
-              <div style={{ textAlign: 'center', marginTop: 16 }}>
-                <button onClick={() => setStep(s => s - 1)}
-                  style={{ background: 'none', border: 'none', color: '#3d5a72', fontSize: 12, cursor: 'pointer' }}>
-                  ← Back
-                </button>
-              </div>
+            {/* ── CONTACT input ── */}
+            {current.type === 'contact' && (
+              <ContactStep business={business} setBusiness={setBusiness} onSubmit={handleContactContinue} />
             )}
           </div>
         </div>
@@ -913,4 +1000,101 @@ export default function AtlasAgent({ onGoPortal }) {
       </div>
     )
   }
+} // end AtlasAgent
+
+// ═══════════════════════════════════════════════════════════
+// CONTACT STEP COMPONENT
+// ═══════════════════════════════════════════════════════════
+function ContactStep({ business, setBusiness, onSubmit }) {
+  const iS = {
+    width: '100%', background: '#060d18', border: '1px solid #1e293b',
+    borderRadius: 9, padding: '13px 15px', color: '#d8eaf8',
+    fontSize: 14, outline: 'none', transition: 'border-color .15s',
+    fontFamily: 'Inter,system-ui,sans-serif',
+  }
+  const onFocus = e => (e.target.style.borderColor = '#00c89660')
+  const onBlur  = e => (e.target.style.borderColor = '#1e293b')
+  const canSubmit = !!(business.contactName || '').trim() && !!(business.contactEmail || '').trim()
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#7a9bbf', fontWeight: 600, letterSpacing: '.03em', marginBottom: 6 }}>Your name *</label>
+          <input
+            autoFocus type="text" placeholder="e.g. John Martinez"
+            value={business.contactName || ''}
+            onChange={e => setBusiness(b => ({ ...b, contactName: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && document.getElementById('atlas-email')?.focus()}
+            style={iS} onFocus={onFocus} onBlur={onBlur}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#7a9bbf', fontWeight: 600, letterSpacing: '.03em', marginBottom: 6 }}>Email address *</label>
+          <input
+            id="atlas-email" type="email" placeholder="john@yourbusiness.com"
+            value={business.contactEmail || ''}
+            onChange={e => setBusiness(b => ({ ...b, contactEmail: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && document.getElementById('atlas-phone')?.focus()}
+            style={iS} onFocus={onFocus} onBlur={onBlur}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: '#7a9bbf', fontWeight: 600, letterSpacing: '.03em', marginBottom: 6 }}>
+            Phone number <span style={{ color: '#3d5a72', fontWeight: 400 }}>(optional — fastest way to reach you)</span>
+          </label>
+          <input
+            id="atlas-phone" type="tel" placeholder="(602) 555-0147"
+            value={business.contactPhone || ''}
+            onChange={e => setBusiness(b => ({ ...b, contactPhone: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter' && canSubmit) onSubmit() }}
+            style={iS} onFocus={onFocus} onBlur={onBlur}
+          />
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div style={{ background: '#060d18', border: '1px solid #1e293b', borderRadius: 9, padding: '13px 15px', marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#3d5a72', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
+          Strategy will be built for
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {[
+            ['Business', business.name],
+            ['Type',     business.type],
+            ['Location', business.location],
+            ['Goal',     business.goal],
+            ['Budget',   business.budget ? business.budget + '/mo' : null],
+            ['Timeline', business.urgency],
+          ].filter(([, v]) => v).map(([l, v]) => (
+            <div key={l} style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+              <span style={{ color: '#3d5a72', minWidth: 60 }}>{l}</span>
+              <span style={{ color: '#a8c4e0', fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={onSubmit}
+        disabled={!canSubmit}
+        style={{
+          width: '100%', padding: '14px 0',
+          background: canSubmit ? '#002e24' : '#162236',
+          border: `1px solid ${canSubmit ? '#00c89650' : '#334155'}`,
+          borderRadius: 9,
+          color: canSubmit ? '#00e5a0' : '#3d5a72',
+          fontSize: 14, fontWeight: 800,
+          cursor: canSubmit ? 'pointer' : 'default',
+          transition: 'all .2s',
+          boxShadow: canSubmit ? '0 0 20px rgba(0,200,150,.12)' : 'none',
+        }}>
+        {canSubmit ? 'Build My Strategy →' : 'Enter your name and email to continue'}
+      </button>
+
+      <div style={{ marginTop: 12, fontSize: 11, color: '#2a4060', textAlign: 'center', lineHeight: 1.6 }}>
+        By submitting you agree to be contacted by recrue media about your advertising strategy. No spam, ever.
+      </div>
+    </div>
+  )
 }
